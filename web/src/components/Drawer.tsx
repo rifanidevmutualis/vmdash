@@ -21,7 +21,6 @@ type DrawerTab =
   | "snapshots"
   | "logs"
   | "settings";
-
 const TABS: { id: DrawerTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "terminal", label: "Terminal" },
@@ -37,6 +36,7 @@ export function MachineDrawer({
   machine,
   settings,
   theme,
+  initialTab,
   onClose,
   onAction,
   onDelete,
@@ -46,13 +46,14 @@ export function MachineDrawer({
   machine: Machine;
   settings: Settings | null;
   theme: "dark" | "light";
+  initialTab?: DrawerTab;
   onClose: () => void;
   onAction: (action: string) => void;
   onDelete: () => void;
   onRefresh: () => void;
   notify: (message: string, tone?: "ok" | "error" | "info") => void;
 }) {
-  const [tab, setTab] = useState<DrawerTab>("overview");
+  const [tab, setTab] = useState<DrawerTab>(initialTab ?? "overview");
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

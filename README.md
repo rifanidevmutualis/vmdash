@@ -16,7 +16,7 @@ Browser (React)  ⇄  axum :8787  ──┬── REST client pool → api.insta
   start/pause/resume/stop/delete.
 - **Terminal**: PTY interaktif lewat WebSocket, persistent session, xterm-256color.
 - **Files**: browse, baca, edit, upload, download, dan hapus file di dalam VM.
-- **Desktop**: link viewer InstaBox (iframe) dan VNC langsung lewat server ini (noVNC).
+- **Desktop**: link viewer InstaBox (iframe), VNC langsung lewat server ini (noVNC), dan halaman **Desktops** berisi wall card semua machine dengan live preview opsional.
 - **Ports**: publish/unpublish HTTPS atau TCP, private token URL, buka di tab baru.
 - **Snapshots**: buat, list, hapus, restore, dan fork machine.
 - **Resize & config**: rename, vCPU/RAM/disk, idle pause, max run, metadata.

@@ -271,6 +271,20 @@ export const DOCS: DocSection[] = [
         kind: "p",
         text: "If the desktop is not installed (for example on the `universal` or `t3` template), use **Install**, wait for the status to become installed, then **Start desktop**.",
       },
+      {
+        kind: "h3",
+        text: "Desktop wall",
+      },
+      {
+        kind: "p",
+        text: "The **Desktops** page shows every machine as a card with its desktop status. Click **Connect** on a card to open a live VNC preview; **Expand** makes it span the grid, and **View only** toggles input. Previews are off by default because a connected VNC counts as activity and keeps the machine awake. InstaBox allows at most 8 open terminals/desktops per user, so the wall caps live previews at 4.",
+      },
+      {
+        kind: "callout",
+        tone: "warn",
+        title: "Close previews when you are done",
+        text: "Leaving the Desktops page disconnects its previews, but a connection in another tab still counts. Status is refreshed every 30 seconds; a live preview also counts toward the per-user terminal/desktop quota.",
+      },
     ],
   },
   {

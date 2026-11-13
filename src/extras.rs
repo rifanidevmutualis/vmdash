@@ -16,7 +16,7 @@ use tokio_tungstenite::tungstenite::Message as TgMessage;
 
 use crate::api::ApiErr;
 use crate::state::SharedState;
-use crate::store::Workspace;
+use crate::store::{MachineRow, Workspace};
 
 type UpstreamSocket = tokio_tungstenite::WebSocketStream<
     tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
@@ -1135,6 +1135,126 @@ pub async fn ws_vnc(
     })
 }
 
+// ── Desktop wall ───────────────────────────────────────────────────────
+
+#[derive(Deserialize, Default)]
+pub struct DesktopQuery {
+    #[serde(default)]
+    pub fresh: bool,
+}
+
+/// All machines with their desktop status, for the card wall. Only running
+/// machines are asked for `POST /desktop action=status`; the answer is cached
+/// briefly because the status endpoint is a POST.
+pub async fn desktops(
+    State(state): State<SharedState>,
+    Query(query): Query<DesktopQuery>,
+) -> Result<Json<Value>, ApiErr> {
+    if !query.fresh {
+        let cache = state.desktop_cache.lock().await;
+        if let Some((at, value)) = cache.as_ref() {
+            if at.elapsed() < std::time::Duration::from_secs(20) {
+                return Ok(Json(value.clone()));
+            }
+        }
+    }
+
+    let workspaces = state.store.list_workspaces().await?;
+    let machines = state.store.list_machines().await?;
+
+    let mut keys = std::collections::HashMap::new();
+    for workspace in &workspaces {
+        if let Ok(key) = state.key_for(workspace).await {
+            keys.insert(workspace.id.clone(), key);
+        }
+    }
+    let by_id: std::collections::HashMap<String, Workspace> = workspaces
+        .into_iter()
+        .map(|workspace| (workspace.id.clone(), workspace))
+        .collect();
+
+    let jobs: Vec<(Workspace, MachineRow)> = machines
+        .into_iter()
+        .filter_map(|row| {
+            by_id
+                .get(&row.workspace_id)
+                .cloned()
+                .map(|workspace| (workspace, row))
+        })
+        .collect();
+
+    let mut results: Vec<Value> = futures_util::stream::iter(jobs)
+        .map(|(workspace, row)| {
+            let state = state.clone();
+            let key = keys.get(&workspace.id).cloned();
+            async move {
+                let mut desktop = Value::Null;
+                let mut error: Option<Value> = None;
+                if row.state == "running" {
+                    match key {
+                        Some(key) => match state
+                            .ib
+                            .desktop(&key, &row.id, "status", None, None)
+                            .await
+                        {
+                            Ok(value) => desktop = value,
+                            Err(err) => {
+                                error = Some(json!({
+                                    "code": err.code,
+                                    "message": err.message,
+                                    "retryable": err.retryable,
+                                }))
+                            }
+                        },
+                        None => {
+                            error = Some(json!({
+                                "code": "key_unreadable",
+                                "message": "Cannot decrypt the stored key for this workspace.",
+                            }))
+                        }
+                    }
+                }
+                let vnc = row.state == "running"
+                    && desktop
+                        .get("running")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                json!({
+                    "workspaceId": workspace.id,
+                    "workspaceLabel": workspace.label,
+                    "workspaceOrg": workspace.org_name,
+                    "workspaceTier": workspace.tier,
+                    "machine": row.to_json(Some(&workspace)),
+                    "desktop": desktop,
+                    "error": error,
+                    "vncAvailable": vnc,
+                })
+            }
+        })
+        .buffer_unordered(6)
+        .collect()
+        .await;
+
+    results.sort_by(|a, b| {
+        let a_vnc = a["vncAvailable"].as_bool().unwrap_or(false);
+        let b_vnc = b["vncAvailable"].as_bool().unwrap_or(false);
+        b_vnc.cmp(&a_vnc).then_with(|| {
+            a["machine"]["name"]
+                .as_str()
+                .unwrap_or("")
+                .cmp(b["machine"]["name"].as_str().unwrap_or(""))
+        })
+    });
+
+    let payload = json!({
+        "desktops": results,
+        "generatedAt": crate::store::now(),
+        "maxLive": 4,
+    });
+    *state.desktop_cache.lock().await = Some((std::time::Instant::now(), payload.clone()));
+    Ok(Json(payload))
+}
+
 // ── Router ─────────────────────────────────────────────────────────────
 
 pub fn routes() -> Router<SharedState> {
@@ -1236,6 +1356,7 @@ pub fn routes() -> Router<SharedState> {
             get(webhook_deliveries),
         )
         .route("/api/webhook-events", get(webhook_events))
+        .route("/api/desktops", get(desktops))
         .route("/webhooks/instabox/{workspace_id}", post(webhook_receive))
         .route("/api/ws/terminal/{workspace_id}/{machine_id}", get(ws_terminal))
         .route("/api/ws/vnc/{workspace_id}/{machine_id}", get(ws_vnc))

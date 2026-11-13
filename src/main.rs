@@ -80,6 +80,7 @@ async fn main() -> Result<()> {
         events,
         sync_lock: tokio::sync::Mutex::new(()),
         mcp_token: tokio::sync::RwLock::new(token.clone()),
+        desktop_cache: tokio::sync::Mutex::new(None),
     });
 
     let stdio_mode = std::env::args().any(|a| a == "mcp-stdio");

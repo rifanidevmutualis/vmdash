@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use serde::Serialize;
+use serde_json::Value;
 use tokio::sync::{broadcast, RwLock};
 
 use crate::config::Config;
@@ -25,6 +26,7 @@ pub struct AppState {
     pub events: broadcast::Sender<Event>,
     pub sync_lock: tokio::sync::Mutex<()>,
     pub mcp_token: RwLock<String>,
+    pub desktop_cache: tokio::sync::Mutex<Option<(std::time::Instant, Value)>>,
 }
 
 impl AppState {

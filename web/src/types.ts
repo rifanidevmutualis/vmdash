@@ -345,3 +345,20 @@ export type WebhookEventRow = {
   payload: string;
   receivedAt: string;
 };
+
+export type DesktopEntry = {
+  workspaceId: string;
+  workspaceLabel?: string;
+  workspaceOrg?: string | null;
+  workspaceTier?: string | null;
+  machine: Machine;
+  desktop: DesktopState | null;
+  error: { code: string; message: string } | null;
+  vncAvailable: boolean;
+};
+
+export type DesktopWall = {
+  desktops: DesktopEntry[];
+  generatedAt: string;
+  maxLive: number;
+};

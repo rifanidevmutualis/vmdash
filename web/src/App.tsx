@@ -23,11 +23,13 @@ import { SnapshotsView } from "./views/SnapshotsView";
 import { WorkspacesView } from "./views/WorkspacesView";
 import { WorkspaceToolsModal } from "./components/WorkspaceToolsModal";
 import { DocsView } from "./views/DocsView";
+import { DesktopsView } from "./views/DesktopsView";
 
-type Tab = "fleet" | "snapshots" | "workspaces" | "activity" | "mcp" | "docs";
+type Tab = "fleet" | "desktops" | "snapshots" | "workspaces" | "activity" | "mcp" | "docs";
 
 const NAV: { id: Tab; label: string; icon: IconName }[] = [
   { id: "fleet", label: "Fleet", icon: "server" },
+  { id: "desktops", label: "Desktops", icon: "monitor" },
   { id: "snapshots", label: "Snapshots", icon: "camera" },
   { id: "workspaces", label: "Workspaces", icon: "workspace" },
   { id: "activity", label: "Activity", icon: "activity" },
@@ -53,6 +55,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedKey, setSelectedKey] = useState<{ workspaceId: string; id: string } | null>(null);
+  const [selectedTab, setSelectedTab] = useState<"desktop" | undefined>(undefined);
   const [addOpen, setAddOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Machine | null>(null);
@@ -298,14 +301,26 @@ export default function App() {
           <FleetView
             fleet={fleet}
             loading={loading}
-            onSelect={(machine) =>
-              setSelectedKey({ workspaceId: machine.workspaceId, id: machine.id })
-            }
+            onSelect={(machine) => {
+              setSelectedTab(undefined);
+              setSelectedKey({ workspaceId: machine.workspaceId, id: machine.id });
+            }}
             onAction={(machine, action) => void act(machine, action)}
             onDelete={(machine) => setDeleteTarget(machine)}
             onNew={openNewMachine}
             onAddWorkspace={() => setAddOpen(true)}
             onSync={() => void doSyncAll()}
+          />
+        ) : null}
+
+        {tab === "desktops" ? (
+          <DesktopsView
+            settings={settings}
+            notify={notify}
+            onOpenMachine={(machine) => {
+              setSelectedTab("desktop");
+              setSelectedKey({ workspaceId: machine.workspaceId, id: machine.id });
+            }}
           />
         ) : null}
 
@@ -343,7 +358,11 @@ export default function App() {
           machine={selected}
           settings={settings}
           theme={theme}
-          onClose={() => setSelectedKey(null)}
+          initialTab={selectedTab}
+          onClose={() => {
+            setSelectedKey(null);
+            setSelectedTab(undefined);
+          }}
           onAction={(action) => void act(selected, action)}
           onDelete={() => setDeleteTarget(selected)}
           onRefresh={() => void refresh(true)}

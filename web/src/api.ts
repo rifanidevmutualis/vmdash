@@ -488,3 +488,9 @@ export function webhookEvents(limit = 50) {
     `/api/webhook-events?limit=${limit}`,
   );
 }
+
+// ── Desktop wall ───────────────────────────────────────────────────────
+
+export function getDesktops(fresh = false): Promise<import("./types").DesktopWall> {
+  return request(`/api/desktops${fresh ? "?fresh=true" : ""}`);
+}
