@@ -220,6 +220,41 @@ export const DOCS: DocSection[] = [
     ],
   },
   {
+    id: "schedules",
+    title: "Scheduled actions",
+    summary: "Time-based pause, stop, resume and start rules that run locally.",
+    blocks: [
+      {
+        kind: "p",
+        text: "Schedules are time-based, unlike idle pause which depends on activity. vmdash checks due schedules every 30 seconds while the server is running, in the server's local timezone. No external cron daemon is needed.",
+      },
+      {
+        kind: "table",
+        head: ["Repeat", "Example", "Notes"],
+        rows: [
+          ["Daily", "Every day at 23:00", "Good for nightly pauses"],
+          ["Weekdays", "Mon–Fri at 08:00", "Weekends are skipped"],
+          ["Hourly", "Every hour at :15", "Useful for light housekeeping"],
+          ["Once", "A specific date and time", "Disables itself after it runs"],
+        ],
+      },
+      {
+        kind: "p",
+        text: "A schedule targets either every machine in one workspace or a specific set of machines. Only machines in the right state are touched: Pause/Stop apply to `running`, Resume applies to `suspended`, and Start applies to `stopped` or `error`. Everything else is counted as skipped.",
+      },
+      {
+        kind: "callout",
+        tone: "warn",
+        title: "Missed windows are not replayed",
+        text: "If the dashboard was offline at the scheduled time, a window older than 5 minutes is skipped and the next one is computed. One-time schedules that were missed are disabled with a `missed` result. Keep vmdash running for schedules to fire.",
+      },
+      {
+        kind: "p",
+        text: "**Run now** executes a schedule immediately without waiting for the next window; it is useful for testing. Scheduled actions appear in Activity, obey InstaBox rate limits, and use the same operation queue as manual actions.",
+      },
+    ],
+  },
+  {
     id: "terminal-files",
     title: "Terminal & files",
     summary: "PTY over WebSocket, and moving bytes in and out of a machine.",

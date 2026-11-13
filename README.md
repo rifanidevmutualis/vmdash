@@ -14,6 +14,8 @@ Browser (React)  ⇄  axum :8787  ──┬── REST client pool → api.insta
 
 - **Fleet view**: semua VM lintas workspace, status live, ukuran, template, idle pause, umur,
   start/pause/resume/stop/delete, plus **bulk actions** untuk banyak VM sekaligus.
+- **Scheduled actions**: pause/stop/resume/start otomatis berdasarkan jadwal harian, weekday,
+  per jam, atau sekali jalan — berjalan lokal selama vmdash hidup.
 - **Terminal**: PTY interaktif lewat WebSocket, persistent session, xterm-256color.
 - **Files**: browse, baca, edit, upload, download, dan hapus file di dalam VM.
 - **Desktop**: link viewer InstaBox (iframe), VNC langsung lewat server ini (noVNC), dan halaman **Desktops** berisi wall card semua machine dengan live preview opsional.

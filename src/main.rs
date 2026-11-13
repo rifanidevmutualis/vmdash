@@ -4,6 +4,7 @@ mod crypto;
 mod extras;
 mod instabox;
 mod mcp;
+mod schedules;
 mod state;
 mod store;
 mod sync;
@@ -86,6 +87,7 @@ async fn main() -> Result<()> {
     let stdio_mode = std::env::args().any(|a| a == "mcp-stdio");
 
     start_poller(state.clone());
+    start_scheduler(state.clone());
     resume_operations(state.clone()).await;
 
     if stdio_mode {
@@ -146,6 +148,16 @@ fn start_poller(state: SharedState) {
         loop {
             let _ = sync_all(&state).await;
             tokio::time::sleep(Duration::from_secs(secs)).await;
+        }
+    });
+}
+
+fn start_scheduler(state: SharedState) {
+    tokio::spawn(async move {
+        schedules::ensure_next(&state).await;
+        loop {
+            schedules::tick(&state).await;
+            tokio::time::sleep(Duration::from_secs(30)).await;
         }
     });
 }

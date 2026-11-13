@@ -381,3 +381,32 @@ export type BulkResponse = {
   failed: number;
   results: BulkResultItem[];
 };
+
+export type ScheduleResult = {
+  ok: number;
+  failed: number;
+  skipped: number;
+  missed?: boolean;
+  message?: string;
+  error?: string;
+  results?: { name: string; ok: boolean; error?: { code: string; message: string } }[];
+};
+
+export type Schedule = {
+  id: string;
+  name: string;
+  action: "start" | "resume" | "suspend" | "stop";
+  scope: "workspace" | "machines";
+  workspaceId?: string | null;
+  machineIds?: string[] | null;
+  kind: "daily" | "weekdays" | "hourly" | "once";
+  timeOfDay?: string | null;
+  minute?: number | null;
+  runAt?: string | null;
+  enabled: boolean;
+  nextRunAt?: string | null;
+  lastRunAt?: string | null;
+  lastResult?: ScheduleResult | null;
+  createdAt: string;
+  updatedAt: string;
+};

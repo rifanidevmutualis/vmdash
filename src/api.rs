@@ -781,6 +781,7 @@ pub fn router(state: SharedState) -> axum::Router {    use axum::routing::{get, 
         .route("/api/settings", get(settings))
         .route("/api/settings/mcp-token", post(rotate_mcp_token))
         .merge(crate::extras::routes())
+        .merge(crate::schedules::routes())
         .with_state(state)
 }
 

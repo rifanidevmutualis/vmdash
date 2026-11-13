@@ -24,12 +24,22 @@ import { WorkspacesView } from "./views/WorkspacesView";
 import { WorkspaceToolsModal } from "./components/WorkspaceToolsModal";
 import { DocsView } from "./views/DocsView";
 import { DesktopsView } from "./views/DesktopsView";
+import { SchedulesView } from "./views/SchedulesView";
 
-type Tab = "fleet" | "desktops" | "snapshots" | "workspaces" | "activity" | "mcp" | "docs";
+type Tab =
+  | "fleet"
+  | "desktops"
+  | "schedules"
+  | "snapshots"
+  | "workspaces"
+  | "activity"
+  | "mcp"
+  | "docs";
 
 const NAV: { id: Tab; label: string; icon: IconName }[] = [
   { id: "fleet", label: "Fleet", icon: "server" },
   { id: "desktops", label: "Desktops", icon: "monitor" },
+  { id: "schedules", label: "Schedules", icon: "clock" },
   { id: "snapshots", label: "Snapshots", icon: "camera" },
   { id: "workspaces", label: "Workspaces", icon: "workspace" },
   { id: "activity", label: "Activity", icon: "activity" },
@@ -325,6 +335,8 @@ export default function App() {
             }}
           />
         ) : null}
+
+        {tab === "schedules" ? <SchedulesView fleet={fleet} notify={notify} /> : null}
 
         {tab === "workspaces" ? (
           <WorkspacesView

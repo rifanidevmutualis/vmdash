@@ -205,6 +205,26 @@ impl Store {
             received_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS webhook_events_received ON webhook_events(received_at DESC);
+
+        CREATE TABLE IF NOT EXISTS schedules (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            action TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            workspace_id TEXT,
+            machine_ids TEXT,
+            kind TEXT NOT NULL,
+            time_of_day TEXT,
+            minute INTEGER,
+            run_at TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            next_run_at TEXT,
+            last_run_at TEXT,
+            last_result TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS schedules_due ON schedules(enabled, next_run_at);
         "#;
         sqlx::raw_sql(schema).execute(&self.pool).await?;
         Ok(())
@@ -605,6 +625,144 @@ impl Store {
             "SELECT * FROM webhook_events ORDER BY received_at DESC LIMIT ?",
         )
         .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct Schedule {
+    pub id: String,
+    pub name: String,
+    pub action: String,
+    pub scope: String,
+    pub workspace_id: Option<String>,
+    pub machine_ids: Option<String>,
+    pub kind: String,
+    pub time_of_day: Option<String>,
+    pub minute: Option<i64>,
+    pub run_at: Option<String>,
+    pub enabled: i64,
+    pub next_run_at: Option<String>,
+    pub last_run_at: Option<String>,
+    pub last_result: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl Store {
+    pub async fn list_schedules(&self) -> Result<Vec<Schedule>> {
+        let rows = sqlx::query_as::<_, Schedule>(
+            "SELECT * FROM schedules ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn get_schedule(&self, id: &str) -> Result<Option<Schedule>> {
+        let row = sqlx::query_as::<_, Schedule>("SELECT * FROM schedules WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row)
+    }
+
+    pub async fn insert_schedule(&self, schedule: &Schedule) -> Result<()> {
+        sqlx::query(
+            r#"INSERT INTO schedules
+               (id, name, action, scope, workspace_id, machine_ids, kind, time_of_day,
+                minute, run_at, enabled, next_run_at, last_run_at, last_result,
+                created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+        )
+        .bind(&schedule.id)
+        .bind(&schedule.name)
+        .bind(&schedule.action)
+        .bind(&schedule.scope)
+        .bind(&schedule.workspace_id)
+        .bind(&schedule.machine_ids)
+        .bind(&schedule.kind)
+        .bind(&schedule.time_of_day)
+        .bind(schedule.minute)
+        .bind(&schedule.run_at)
+        .bind(schedule.enabled)
+        .bind(&schedule.next_run_at)
+        .bind(&schedule.last_run_at)
+        .bind(&schedule.last_result)
+        .bind(&schedule.created_at)
+        .bind(&schedule.updated_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn delete_schedule(&self, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM schedules WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_schedule_next(&self, id: &str, next: Option<&str>) -> Result<()> {
+        sqlx::query("UPDATE schedules SET next_run_at = ?, updated_at = ? WHERE id = ?")
+            .bind(next)
+            .bind(now())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_schedule_enabled(
+        &self,
+        id: &str,
+        enabled: bool,
+        next: Option<&str>,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE schedules SET enabled = ?, next_run_at = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(if enabled { 1 } else { 0 })
+        .bind(next)
+        .bind(now())
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn finish_schedule(
+        &self,
+        id: &str,
+        last_run_at: &str,
+        result: &str,
+        next: Option<&str>,
+        enabled: bool,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"UPDATE schedules SET last_run_at = ?, last_result = ?, next_run_at = ?,
+               enabled = ?, updated_at = ? WHERE id = ?"#,
+        )
+        .bind(last_run_at)
+        .bind(result)
+        .bind(next)
+        .bind(if enabled { 1 } else { 0 })
+        .bind(now())
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn due_schedules(&self, now: &str) -> Result<Vec<Schedule>> {
+        let rows = sqlx::query_as::<_, Schedule>(
+            "SELECT * FROM schedules WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ? ORDER BY next_run_at ASC LIMIT 20",
+        )
+        .bind(now)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)

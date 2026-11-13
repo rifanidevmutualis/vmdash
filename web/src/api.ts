@@ -507,3 +507,47 @@ export function bulkAction(
     body: JSON.stringify({ action, items, confirm }),
   });
 }
+
+// ── Schedules ──────────────────────────────────────────────────────────
+
+export function getSchedules() {
+  return request<{ schedules: import("./types").Schedule[]; now: string }>("/api/schedules");
+}
+
+export type CreateScheduleInput = {
+  name: string;
+  action: string;
+  scope: string;
+  workspaceId: string;
+  machineIds?: string[];
+  kind: string;
+  timeOfDay?: string;
+  minute?: number;
+  runAt?: string;
+  enabled?: boolean;
+};
+
+export function createSchedule(input: CreateScheduleInput) {
+  return request<{ schedule: import("./types").Schedule }>("/api/schedules", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function toggleSchedule(id: string, enabled: boolean) {
+  return request<{ schedule: import("./types").Schedule }>(`/api/schedules/${id}/toggle`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export function runSchedule(id: string) {
+  return request<{ result: import("./types").ScheduleResult; schedule: import("./types").Schedule }>(
+    `/api/schedules/${id}/run`,
+    { method: "POST", body: "{}" },
+  );
+}
+
+export function deleteSchedule(id: string) {
+  return request<{ ok: boolean }>(`/api/schedules/${id}`, { method: "DELETE" });
+}
