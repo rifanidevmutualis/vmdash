@@ -501,6 +501,7 @@ export const DOCS: DocSection[] = [
           ["`list_workspaces`", "Connected keys, org, plan, machine count, spend"],
           ["`list_machines` / `get_machine`", "Fleet view and live machine detail"],
           ["`create_machine` / `machine_action` / `delete_machine`", "Lifecycle with confirmation for delete"],
+          ["`bulk_action`", "Start, pause, resume, stop or delete up to 50 machines"],
           ["`exec`", "Run bash and return stdout, stderr, exit code"],
           ["`files`", "List, read (≤256 KiB text), write"],
           ["`ssh_token`", "Issue an SSH token and command"],

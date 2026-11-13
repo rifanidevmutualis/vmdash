@@ -1,7 +1,9 @@
 use axum::Json;
 use serde_json::{json, Value};
 
-use crate::instabox::{new_idempotency_key, ApiError};use crate::state::SharedState;
+use crate::extras::{execute_bulk, BulkItem};
+use crate::instabox::{new_idempotency_key, ApiError};
+use crate::state::SharedState;
 use crate::store::{MachineRow, Workspace};
 
 const PROTOCOL_VERSION: &str = "2025-06-18";
@@ -293,6 +295,26 @@ pub fn tools() -> Value {
                     "enabled": { "type": "boolean" }
                 },
                 "required": ["op"]
+            }
+        },
+        {
+            "name": "bulk_action",
+            "description": "Run one lifecycle action (start, stop, suspend, resume, delete) on up to 50 machines at once. Machines are ids or names, optionally scoped by workspace. The server runs four at a time and returns a per-machine result. For delete, confirm must be the literal string 'delete' and count must equal the number of resolved machines.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["start", "stop", "suspend", "resume", "delete"] },
+                    "machines": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 50,
+                        "items": { "type": "string", "description": "Machine id or unique name." }
+                    },
+                    "workspace": { "type": "string", "description": "Workspace id, label or org name when names are ambiguous." },
+                    "confirm": { "type": "string", "description": "Bulk delete requires 'delete'." },
+                    "count": { "type": "integer", "description": "Bulk delete requires the exact number of resolved machines." }
+                },
+                "required": ["action", "machines"]
             }
         }
     ])
@@ -1404,6 +1426,70 @@ async fn call_tool(state: &SharedState, name: &str, args: &Value) -> Value {
                     text_result(&value)
                 }
                 Err(e) => api_error(e),
+            }
+        }
+        "bulk_action" => {
+            let action = arg_str(args, "action").unwrap_or("");
+            let refs = match args.get("machines").and_then(Value::as_array) {
+                Some(values) if !values.is_empty() && values.len() <= 50 => values,
+                _ => return error_result("machines must contain 1-50 machine ids or names"),
+            };
+
+            let mut resolved: Vec<(Workspace, MachineRow)> = Vec::new();
+            let mut unresolved: Vec<String> = Vec::new();
+            for reference in refs {
+                let Some(reference) = reference.as_str() else {
+                    unresolved.push("(not a string)".into());
+                    continue;
+                };
+                let mut query = json!({ "machine": reference });
+                if let Some(workspace) = arg_str(args, "workspace") {
+                    query["workspace"] = json!(workspace);
+                }
+                match find_machine(state, &query).await {
+                    Ok(found) => resolved.push(found),
+                    Err(err) => unresolved.push(format!("{reference}: {err}")),
+                }
+            }
+            if !unresolved.is_empty() {
+                return error_result(format!(
+                    "Could not resolve every machine, nothing was run:\n{}",
+                    unresolved.join("\n")
+                ));
+            }
+
+            let mut seen = std::collections::HashSet::new();
+            let mut items: Vec<BulkItem> = Vec::new();
+            for (workspace, machine) in resolved {
+                if seen.insert(format!("{}:{}", workspace.id, machine.id)) {
+                    items.push(BulkItem {
+                        workspace_id: workspace.id,
+                        machine_id: machine.id,
+                    });
+                }
+            }
+            if items.is_empty() {
+                return error_result("No machines to act on");
+            }
+
+            if action == "delete" {
+                if arg_str(args, "confirm") != Some("delete") {
+                    return error_result(
+                        "Bulk delete requires confirm=\"delete\" and count equal to the resolved machine count",
+                    );
+                }
+                let count = args.get("count").and_then(Value::as_u64);
+                if count != Some(items.len() as u64) {
+                    return error_result(format!(
+                        "Bulk delete requires count={} (the number of resolved machines)",
+                        items.len()
+                    ));
+                }
+            }
+
+            match execute_bulk(state, action, &items, arg_str(args, "confirm")).await {
+                Ok(result) => text_result(&result),
+                Err(err) => api_error(err),
             }
         }
         other => error_result(format!("Unknown tool: {other}")),

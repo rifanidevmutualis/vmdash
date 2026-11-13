@@ -15,6 +15,7 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message as TgMessage;
 
 use crate::api::ApiErr;
+use crate::instabox::ApiError;
 use crate::state::SharedState;
 use crate::store::{MachineRow, Workspace};
 
@@ -1257,7 +1258,7 @@ pub async fn desktops(
 
 // ── Bulk actions ───────────────────────────────────────────────────────
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BulkItem {
     pub workspace_id: String,
@@ -1276,30 +1277,50 @@ pub async fn bulk_action(
     State(state): State<SharedState>,
     Json(body): Json<BulkBody>,
 ) -> Result<Json<Value>, ApiErr> {
-    if !["start", "stop", "suspend", "resume", "delete"].contains(&body.action.as_str()) {
-        return Err(ApiErr::new(
-            StatusCode::BAD_REQUEST,
+    Ok(Json(
+        execute_bulk(&state, &body.action, &body.items, body.confirm.as_deref()).await?,
+    ))
+}
+
+/// Shared bulk executor for the HTTP endpoint and the MCP `bulk_action` tool.
+/// Runs four machines at a time and returns a per-machine result.
+pub async fn execute_bulk(
+    state: &SharedState,
+    action: &str,
+    items: &[BulkItem],
+    confirm: Option<&str>,
+) -> Result<Value, ApiError> {
+    let bad = |code: &str, message: &str| {
+        let mut error = ApiError::local(code, message);
+        error.status = Some(400);
+        error
+    };
+    if !["start", "stop", "suspend", "resume", "delete"].contains(&action) {
+        return Err(bad(
             "bad_request",
             "action must be start, stop, suspend, resume or delete",
         ));
     }
-    if body.items.is_empty() || body.items.len() > 50 {
-        return Err(ApiErr::new(
-            StatusCode::BAD_REQUEST,
-            "bad_request",
-            "Select between 1 and 50 machines.",
-        ));
+    if items.is_empty() || items.len() > 50 {
+        return Err(bad("bad_request", "Select between 1 and 50 machines."));
     }
-    if body.action == "delete" && body.confirm.as_deref() != Some("delete") {
-        return Err(ApiErr::new(
-            StatusCode::BAD_REQUEST,
+    if action == "delete" && confirm != Some("delete") {
+        return Err(bad(
             "delete_confirmation_required",
             "Bulk delete requires confirm: \"delete\".",
         ));
     }
 
-    let workspaces = state.store.list_workspaces().await?;
-    let machines = state.store.list_machines().await?;
+    let workspaces = state
+        .store
+        .list_workspaces()
+        .await
+        .map_err(|err| ApiError::local("store_error", err.to_string()))?;
+    let machines = state
+        .store
+        .list_machines()
+        .await
+        .map_err(|err| ApiError::local("store_error", err.to_string()))?;
     let mut keys = std::collections::HashMap::new();
     for workspace in &workspaces {
         if let Ok(key) = state.key_for(workspace).await {
@@ -1315,8 +1336,8 @@ pub async fn bulk_action(
         .map(|row| ((row.workspace_id.clone(), row.id.clone()), row))
         .collect();
 
-    let action = body.action.clone();
-    let results: Vec<Value> = futures_util::stream::iter(body.items)
+    let action = action.to_string();
+    let results: Vec<Value> = futures_util::stream::iter(items.iter().cloned())
         .map(|item| {
             let state = state.clone();
             let action = action.clone();
@@ -1334,7 +1355,7 @@ pub async fn bulk_action(
                         "error": { "code": "not_found", "message": "Workspace not found" }
                     });
                 };
-                let Some(_machine) = machine else {
+                let Some(machine) = machine else {
                     return json!({
                         "workspaceId": item.workspace_id,
                         "machineId": item.machine_id,
@@ -1361,16 +1382,12 @@ pub async fn bulk_action(
                             .get("state")
                             .and_then(Value::as_str)
                             .unwrap_or("queued");
-                        if let Some(op_id) = &op_id {
-                            let st = state.clone();
-                            crate::api::track_operation(
-                                &st,
-                                &workspace.id,
-                                &operation,
-                                &format!("machine.{action}"),
-                            );
-                            let _ = op_id;
-                        }
+                        crate::api::track_operation(
+                            &state,
+                            &workspace.id,
+                            &operation,
+                            &format!("machine.{action}"),
+                        );
                         let _ = state
                             .store
                             .audit(
@@ -1384,7 +1401,7 @@ pub async fn bulk_action(
                         json!({
                             "workspaceId": item.workspace_id,
                             "machineId": item.machine_id,
-                            "name": _machine.name,
+                            "name": machine.name,
                             "ok": true,
                             "operationId": op_id,
                             "operationState": op_state,
@@ -1404,7 +1421,7 @@ pub async fn bulk_action(
                         json!({
                             "workspaceId": item.workspace_id,
                             "machineId": item.machine_id,
-                            "name": _machine.name,
+                            "name": machine.name,
                             "ok": false,
                             "error": { "code": err.code, "message": err.message, "retryable": err.retryable }
                         })
@@ -1420,12 +1437,12 @@ pub async fn bulk_action(
         .iter()
         .filter(|item| item["ok"].as_bool().unwrap_or(false))
         .count();
-    Ok(Json(json!({
+    Ok(json!({
         "action": action,
         "ok": ok,
         "failed": results.len() - ok,
         "results": results,
-    })))
+    }))
 }
 
 // ── Router ─────────────────────────────────────────────────────────────

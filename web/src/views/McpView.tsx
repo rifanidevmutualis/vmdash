@@ -10,8 +10,21 @@ const TOOLS = [
   { name: "create_machine", desc: "Create from a template and follow the operation" },
   { name: "machine_action", desc: "start · stop · suspend · resume" },
   { name: "delete_machine", desc: "Delete with an explicit name/ID confirmation" },
+  { name: "bulk_action", desc: "Start/pause/resume/stop/delete up to 50 machines at once" },
   { name: "exec", desc: "Run bash in a machine, return stdout + exit code" },
   { name: "get_usage", desc: "Monthly cost and plan limits per workspace" },
+  { name: "files", desc: "List, read (≤256 KiB text), write files" },
+  { name: "ssh_token", desc: "Issue a short-lived SSH token and command" },
+  { name: "desktop", desc: "Desktop status, install, start, share link" },
+  { name: "ports", desc: "List, publish, unpublish public ports" },
+  { name: "snapshots", desc: "Create, list, delete, restore snapshots" },
+  { name: "fork_machine", desc: "Copy a machine's disks on the same host" },
+  { name: "resize_machine", desc: "Rename, resize, idle pause, metadata" },
+  { name: "metrics", desc: "CPU, memory, disk, network samples" },
+  { name: "logs", desc: "Console log and recent operations" },
+  { name: "history", desc: "Recent exec commands and stored output" },
+  { name: "secrets", desc: "Org Secrets and per-machine selection" },
+  { name: "webhooks", desc: "Webhook endpoints, test, rotate, deliveries" },
 ];
 
 type Client = "claude" | "cursor" | "opencode" | "stdio";
@@ -221,7 +234,7 @@ export function McpView({
       <section className="panel">
         <div className="panel-head">
           <h2>Tools</h2>
-          <span className="muted small">8 tools · one server for every workspace</span>
+          <span className="muted small">{TOOLS.length} tools · one server for every workspace</span>
         </div>
         <div className="tool-grid">
           {TOOLS.map((tool) => (

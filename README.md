@@ -177,14 +177,15 @@ claude mcp add --transport http vmdash http://127.0.0.1:8787/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-Tool yang tersedia (20):
+Tool yang tersedia (21):
 
 ```
 list_workspaces   list_machines   get_machine      create_machine
-machine_action    delete_machine  exec             get_usage
-files             ssh_token       desktop          ports
-snapshots         fork_machine    resize_machine   metrics
-logs              history         secrets          webhooks
+machine_action    delete_machine  bulk_action      exec
+get_usage         files           ssh_token        desktop
+ports             snapshots       fork_machine     resize_machine
+metrics           logs            history          secrets
+webhooks
 ```
 
 Semua tool jalan di atas key yang tersimpan di server. **Agent tidak pernah menerima API key
