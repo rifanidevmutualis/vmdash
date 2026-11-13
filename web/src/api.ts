@@ -494,3 +494,16 @@ export function webhookEvents(limit = 50) {
 export function getDesktops(fresh = false): Promise<import("./types").DesktopWall> {
   return request(`/api/desktops${fresh ? "?fresh=true" : ""}`);
 }
+
+// ── Bulk actions ───────────────────────────────────────────────────────
+
+export function bulkAction(
+  action: string,
+  items: import("./types").BulkItem[],
+  confirm?: string,
+): Promise<import("./types").BulkResponse> {
+  return request("/api/bulk/actions", {
+    method: "POST",
+    body: JSON.stringify({ action, items, confirm }),
+  });
+}

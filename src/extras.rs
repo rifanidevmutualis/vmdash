@@ -1255,6 +1255,179 @@ pub async fn desktops(
     Ok(Json(payload))
 }
 
+// ── Bulk actions ───────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkItem {
+    pub workspace_id: String,
+    pub machine_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkBody {
+    pub action: String,
+    pub items: Vec<BulkItem>,
+    pub confirm: Option<String>,
+}
+
+pub async fn bulk_action(
+    State(state): State<SharedState>,
+    Json(body): Json<BulkBody>,
+) -> Result<Json<Value>, ApiErr> {
+    if !["start", "stop", "suspend", "resume", "delete"].contains(&body.action.as_str()) {
+        return Err(ApiErr::new(
+            StatusCode::BAD_REQUEST,
+            "bad_request",
+            "action must be start, stop, suspend, resume or delete",
+        ));
+    }
+    if body.items.is_empty() || body.items.len() > 50 {
+        return Err(ApiErr::new(
+            StatusCode::BAD_REQUEST,
+            "bad_request",
+            "Select between 1 and 50 machines.",
+        ));
+    }
+    if body.action == "delete" && body.confirm.as_deref() != Some("delete") {
+        return Err(ApiErr::new(
+            StatusCode::BAD_REQUEST,
+            "delete_confirmation_required",
+            "Bulk delete requires confirm: \"delete\".",
+        ));
+    }
+
+    let workspaces = state.store.list_workspaces().await?;
+    let machines = state.store.list_machines().await?;
+    let mut keys = std::collections::HashMap::new();
+    for workspace in &workspaces {
+        if let Ok(key) = state.key_for(workspace).await {
+            keys.insert(workspace.id.clone(), key);
+        }
+    }
+    let ws_by_id: std::collections::HashMap<String, Workspace> = workspaces
+        .into_iter()
+        .map(|workspace| (workspace.id.clone(), workspace))
+        .collect();
+    let machine_by_id: std::collections::HashMap<(String, String), MachineRow> = machines
+        .into_iter()
+        .map(|row| ((row.workspace_id.clone(), row.id.clone()), row))
+        .collect();
+
+    let action = body.action.clone();
+    let results: Vec<Value> = futures_util::stream::iter(body.items)
+        .map(|item| {
+            let state = state.clone();
+            let action = action.clone();
+            let workspace = ws_by_id.get(&item.workspace_id).cloned();
+            let machine = machine_by_id
+                .get(&(item.workspace_id.clone(), item.machine_id.clone()))
+                .cloned();
+            let key = keys.get(&item.workspace_id).cloned();
+            async move {
+                let Some(workspace) = workspace else {
+                    return json!({
+                        "workspaceId": item.workspace_id,
+                        "machineId": item.machine_id,
+                        "ok": false,
+                        "error": { "code": "not_found", "message": "Workspace not found" }
+                    });
+                };
+                let Some(_machine) = machine else {
+                    return json!({
+                        "workspaceId": item.workspace_id,
+                        "machineId": item.machine_id,
+                        "ok": false,
+                        "error": { "code": "not_found", "message": "Machine not found in cache" }
+                    });
+                };
+                let Some(key) = key else {
+                    return json!({
+                        "workspaceId": item.workspace_id,
+                        "machineId": item.machine_id,
+                        "ok": false,
+                        "error": { "code": "key_unreadable", "message": "Cannot decrypt workspace key" }
+                    });
+                };
+
+                match state.ib.action(&key, &item.machine_id, &action).await {
+                    Ok(operation) => {
+                        let op_id = operation
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .map(str::to_string);
+                        let op_state = operation
+                            .get("state")
+                            .and_then(Value::as_str)
+                            .unwrap_or("queued");
+                        if let Some(op_id) = &op_id {
+                            let st = state.clone();
+                            crate::api::track_operation(
+                                &st,
+                                &workspace.id,
+                                &operation,
+                                &format!("machine.{action}"),
+                            );
+                            let _ = op_id;
+                        }
+                        let _ = state
+                            .store
+                            .audit(
+                                Some(&workspace.id),
+                                Some(&item.machine_id),
+                                &format!("machine.{action}"),
+                                Some("bulk"),
+                                true,
+                            )
+                            .await;
+                        json!({
+                            "workspaceId": item.workspace_id,
+                            "machineId": item.machine_id,
+                            "name": _machine.name,
+                            "ok": true,
+                            "operationId": op_id,
+                            "operationState": op_state,
+                        })
+                    }
+                    Err(err) => {
+                        let _ = state
+                            .store
+                            .audit(
+                                Some(&workspace.id),
+                                Some(&item.machine_id),
+                                &format!("machine.{action}"),
+                                Some("bulk"),
+                                false,
+                            )
+                            .await;
+                        json!({
+                            "workspaceId": item.workspace_id,
+                            "machineId": item.machine_id,
+                            "name": _machine.name,
+                            "ok": false,
+                            "error": { "code": err.code, "message": err.message, "retryable": err.retryable }
+                        })
+                    }
+                }
+            }
+        })
+        .buffer_unordered(4)
+        .collect()
+        .await;
+
+    let ok = results
+        .iter()
+        .filter(|item| item["ok"].as_bool().unwrap_or(false))
+        .count();
+    Ok(Json(json!({
+        "action": action,
+        "ok": ok,
+        "failed": results.len() - ok,
+        "results": results,
+    })))
+}
+
 // ── Router ─────────────────────────────────────────────────────────────
 
 pub fn routes() -> Router<SharedState> {
@@ -1357,6 +1530,7 @@ pub fn routes() -> Router<SharedState> {
         )
         .route("/api/webhook-events", get(webhook_events))
         .route("/api/desktops", get(desktops))
+        .route("/api/bulk/actions", post(bulk_action))
         .route("/webhooks/instabox/{workspace_id}", post(webhook_receive))
         .route("/api/ws/terminal/{workspace_id}/{machine_id}", get(ws_terminal))
         .route("/api/ws/vnc/{workspace_id}/{machine_id}", get(ws_vnc))

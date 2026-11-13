@@ -203,6 +203,20 @@ export const DOCS: DocSection[] = [
         title: "Idle pause and max run are separate",
         text: "Idle pause activates after a period without work. Max run is a continuous runtime cap. Whichever is reached first pauses the machine; a max-run pause can start a cooldown.",
       },
+      {
+        kind: "h3",
+        text: "Bulk actions",
+      },
+      {
+        kind: "p",
+        text: "Tick the checkboxes in the Fleet table (or the header checkbox for all visible rows) to select machines across workspaces. The bulk bar can start, resume, pause, stop, or delete them. Actions run four at a time, each item gets its own result, and every action is audited. Bulk delete requires typing `delete` and cannot be undone; snapshots are kept.",
+      },
+      {
+        kind: "callout",
+        tone: "warn",
+        title: "Bulk start still obeys plan limits",
+        text: "InstaBox starts are rate-limited (3/min free, 30/min Pro). A bulk start can return per-machine `rate_limited` errors; retry the failed ones after the indicated delay. Bulk stop and delete confirm before sending.",
+      },
     ],
   },
   {

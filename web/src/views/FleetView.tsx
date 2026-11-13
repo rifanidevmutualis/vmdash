@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
-import type { Fleet, Machine } from "../types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { BulkResponse, Fleet, Machine } from "../types";
 import { ago, idleLabel, money, sizeLabel, templateLabel } from "../format";
 import { Icon } from "../icons";
 import { MachineDot, StatePill } from "../components/Status";
+import { bulkAction, errorMessage } from "../api";
+import { Modal } from "../components/Modal";
 
 type StatusFilter = "all" | "running" | "paused" | "stopped" | "error";
 
@@ -15,6 +17,8 @@ export function FleetView({
   onNew,
   onAddWorkspace,
   onSync,
+  notify,
+  onRefresh,
 }: {
   fleet: Fleet | null;
   loading: boolean;
@@ -24,10 +28,18 @@ export function FleetView({
   onNew: () => void;
   onAddWorkspace: () => void;
   onSync: () => void;
+  notify: (message: string, tone?: "ok" | "error" | "info") => void;
+  onRefresh: () => void;
 }) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [workspace, setWorkspace] = useState("all");
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<"stop" | "delete" | null>(null);
+  const [bulkResult, setBulkResult] = useState<BulkResponse | null>(null);
+  const [deletePhrase, setDeletePhrase] = useState("");
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   const machines = fleet?.machines ?? [];
   const workspaces = fleet?.workspaces ?? [];
@@ -67,6 +79,80 @@ export function FleetView({
     stopped: stats?.stopped ?? 0,
     error: stats?.error ?? 0,
   };
+
+  const keyOf = (machine: Machine) => `${machine.workspaceId}:${machine.id}`;
+  const selectedMachines = useMemo(
+    () => machines.filter((machine) => selected.has(keyOf(machine))),
+    [machines, selected],
+  );
+  const visibleSelected = filtered.filter((machine) => selected.has(keyOf(machine)));
+  const allVisibleSelected = filtered.length > 0 && visibleSelected.length === filtered.length;
+  const someVisibleSelected = visibleSelected.length > 0 && !allVisibleSelected;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someVisibleSelected;
+    }
+  }, [someVisibleSelected]);
+
+  const canStart = selectedMachines.some((machine) => ["stopped", "error"].includes(machine.state));
+  const canResume = selectedMachines.some((machine) => machine.state === "suspended");
+  const canPause = selectedMachines.some((machine) => machine.state === "running");
+  const canStop = canPause;
+  const canDelete = selectedMachines.length > 0;
+
+  function toggleSelect(machine: Machine) {
+    const key = keyOf(machine);
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleVisible() {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        filtered.forEach((machine) => next.delete(keyOf(machine)));
+      } else {
+        filtered.forEach((machine) => next.add(keyOf(machine)));
+      }
+      return next;
+    });
+  }
+
+  async function runBulk(action: string, confirm?: string) {
+    if (selectedMachines.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const result = await bulkAction(
+        action,
+        selectedMachines.map((machine) => ({
+          workspaceId: machine.workspaceId,
+          machineId: machine.id,
+        })),
+        confirm,
+      );
+      if (result.failed > 0) {
+        setBulkResult(result);
+        notify(`${result.ok} queued · ${result.failed} failed`, "error");
+      } else {
+        notify(
+          `${result.ok} machine${result.ok === 1 ? "" : "s"} queued for ${action}`,
+          "ok",
+        );
+      }
+      setSelected(new Set());
+      setBulkConfirm(null);
+      onRefresh();
+    } catch (err) {
+      notify(errorMessage(err), "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   if (!fleet) {
     return (
@@ -269,6 +355,61 @@ export function FleetView({
           </div>
         </div>
 
+        {selectedMachines.length > 0 ? (
+          <div className="bulk-bar">
+            <div className="bulk-count">
+              <strong>{selectedMachines.length}</strong> selected
+            </div>
+            <div className="bulk-actions">
+              <button
+                className="btn tiny-btn"
+                disabled={!canStart || bulkBusy}
+                onClick={() => void runBulk("start")}
+              >
+                <Icon name="play" size={12} /> Start
+              </button>
+              <button
+                className="btn tiny-btn"
+                disabled={!canResume || bulkBusy}
+                onClick={() => void runBulk("resume")}
+              >
+                <Icon name="play" size={12} /> Resume
+              </button>
+              <button
+                className="btn tiny-btn"
+                disabled={!canPause || bulkBusy}
+                onClick={() => void runBulk("suspend")}
+              >
+                <Icon name="pause" size={12} /> Pause
+              </button>
+              <button
+                className="btn danger tiny-btn"
+                disabled={!canStop || bulkBusy}
+                onClick={() => {
+                  setDeletePhrase("");
+                  setBulkConfirm("stop");
+                }}
+              >
+                <Icon name="stop" size={12} /> Stop
+              </button>
+              <button
+                className="btn danger tiny-btn"
+                disabled={!canDelete || bulkBusy}
+                onClick={() => {
+                  setDeletePhrase("");
+                  setBulkConfirm("delete");
+                }}
+              >
+                <Icon name="trash" size={12} /> Delete
+              </button>
+              {bulkBusy ? <span className="spinner" /> : null}
+            </div>
+            <button className="link-btn" onClick={() => setSelected(new Set())}>
+              Clear
+            </button>
+          </div>
+        ) : null}
+
         {filtered.length === 0 ? (
           <div className="table-empty">
             <div className="empty-icon"><Icon name="box" size={22} /></div>
@@ -289,6 +430,15 @@ export function FleetView({
             <table className="fleet-table">
               <thead>
                 <tr>
+                  <th className="select-col">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleVisible}
+                      aria-label="Select all visible machines"
+                    />
+                  </th>
                   <th>Machine</th>
                   <th>State</th>
                   <th>Size</th>
@@ -311,6 +461,14 @@ export function FleetView({
                         if (event.key === "Enter") onSelect(machine);
                       }}
                     >
+                      <td className="select-col" onClick={(event) => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(keyOf(machine))}
+                          onChange={() => toggleSelect(machine)}
+                          aria-label={`Select ${machine.name}`}
+                        />
+                      </td>
                       <td>
                         <div className="machine-cell">
                           <MachineDot index={workspaceIndex.get(machine.workspaceId) ?? 0} />
@@ -392,6 +550,101 @@ export function FleetView({
         </span>
         <span className="muted">Operations are queued one at a time per machine.</span>
       </div>
+
+      {bulkConfirm ? (
+        <Modal
+          title={
+            bulkConfirm === "delete"
+              ? `Delete ${selectedMachines.length} machine${selectedMachines.length === 1 ? "" : "s"}?`
+              : `Stop ${selectedMachines.length} machine${selectedMachines.length === 1 ? "" : "s"}?`
+          }
+          subtitle={
+            bulkConfirm === "delete"
+              ? "This removes the machines and their disks. Snapshots are kept."
+              : "Running programs end. Files and snapshots are kept."
+          }
+          width={480}
+          onClose={() => setBulkConfirm(null)}
+          footer={
+            <>
+              <button
+                className="btn ghost"
+                onClick={() => setBulkConfirm(null)}
+                disabled={bulkBusy}
+              >
+                Cancel
+              </button>
+              <button
+                className={`btn ${bulkConfirm === "delete" ? "danger" : "primary"}`}
+                disabled={
+                  bulkBusy ||
+                  (bulkConfirm === "delete" && deletePhrase.trim().toLowerCase() !== "delete")
+                }
+                onClick={() => {
+                  if (bulkConfirm === "delete") void runBulk("delete", "delete");
+                  else void runBulk("stop");
+                }}
+              >
+                {bulkBusy ? <span className="spinner" /> : <Icon name={bulkConfirm === "delete" ? "trash" : "stop"} />}
+                {bulkConfirm === "delete" ? "Delete machines" : "Stop machines"}
+              </button>
+            </>
+          }
+        >
+          <div className="bulk-confirm">
+            <ul className="bulk-names">
+              {selectedMachines.map((machine) => (
+                <li key={keyOf(machine)}>
+                  <strong>{machine.name}</strong>
+                  <span>{machine.workspaceLabel ?? machine.workspaceId}</span>
+                </li>
+              ))}
+            </ul>
+            {bulkConfirm === "delete" ? (
+              <label className="field">
+                <span className="field-label">
+                  Type <code>delete</code> to confirm
+                </span>
+                <input
+                  value={deletePhrase}
+                  onChange={(event) => setDeletePhrase(event.target.value)}
+                  autoFocus
+                  spellCheck={false}
+                />
+              </label>
+            ) : null}
+          </div>
+        </Modal>
+      ) : null}
+
+      {bulkResult ? (
+        <Modal
+          title="Bulk action results"
+          subtitle={`${bulkResult.ok} queued · ${bulkResult.failed} failed`}
+          width={520}
+          onClose={() => setBulkResult(null)}
+          footer={
+            <button className="btn primary" onClick={() => setBulkResult(null)}>
+              Close
+            </button>
+          }
+        >
+          <div className="bulk-results">
+            {bulkResult.results.map((result) => (
+              <div className="bulk-result-row" key={`${result.workspaceId}:${result.machineId}`}>
+                <span className={`result ${result.ok ? "ok" : "bad"}`}>
+                  <Icon name={result.ok ? "check" : "x"} size={12} />
+                  {result.ok ? "queued" : "failed"}
+                </span>
+                <div>
+                  <strong>{result.name ?? result.machineId}</strong>
+                  {result.error ? <p>{result.error.message}</p> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }

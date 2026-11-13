@@ -310,6 +310,8 @@ export default function App() {
             onNew={openNewMachine}
             onAddWorkspace={() => setAddOpen(true)}
             onSync={() => void doSyncAll()}
+            notify={notify}
+            onRefresh={() => void refresh(true)}
           />
         ) : null}
 

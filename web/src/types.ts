@@ -362,3 +362,22 @@ export type DesktopWall = {
   generatedAt: string;
   maxLive: number;
 };
+
+export type BulkItem = { workspaceId: string; machineId: string };
+
+export type BulkResultItem = {
+  workspaceId: string;
+  machineId: string;
+  name?: string;
+  ok: boolean;
+  operationId?: string;
+  operationState?: string;
+  error?: { code: string; message: string; retryable?: boolean };
+};
+
+export type BulkResponse = {
+  action: string;
+  ok: number;
+  failed: number;
+  results: BulkResultItem[];
+};
