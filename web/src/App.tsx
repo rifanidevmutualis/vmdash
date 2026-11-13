@@ -25,11 +25,13 @@ import { WorkspaceToolsModal } from "./components/WorkspaceToolsModal";
 import { DocsView } from "./views/DocsView";
 import { DesktopsView } from "./views/DesktopsView";
 import { SchedulesView } from "./views/SchedulesView";
+import { HealthView } from "./views/HealthView";
 
 type Tab =
   | "fleet"
   | "desktops"
   | "schedules"
+  | "health"
   | "snapshots"
   | "workspaces"
   | "activity"
@@ -40,6 +42,7 @@ const NAV: { id: Tab; label: string; icon: IconName }[] = [
   { id: "fleet", label: "Fleet", icon: "server" },
   { id: "desktops", label: "Desktops", icon: "monitor" },
   { id: "schedules", label: "Schedules", icon: "clock" },
+  { id: "health", label: "Health", icon: "cpu" },
   { id: "snapshots", label: "Snapshots", icon: "camera" },
   { id: "workspaces", label: "Workspaces", icon: "workspace" },
   { id: "activity", label: "Activity", icon: "activity" },
@@ -337,6 +340,16 @@ export default function App() {
         ) : null}
 
         {tab === "schedules" ? <SchedulesView fleet={fleet} notify={notify} /> : null}
+
+        {tab === "health" ? (
+          <HealthView
+            notify={notify}
+            onOpenMachine={(machine) => {
+              setSelectedTab(undefined);
+              setSelectedKey({ workspaceId: machine.workspaceId, id: machine.id });
+            }}
+          />
+        ) : null}
 
         {tab === "workspaces" ? (
           <WorkspacesView

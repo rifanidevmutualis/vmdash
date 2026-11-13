@@ -607,6 +607,15 @@ impl IbClient {
         Ok(())
     }
 
+    pub async fn machine_usage(&self, key: &str) -> Result<Value, ApiError> {
+        self.get_json(
+            key,
+            "/v1/usage/machines?limit=100&sort=computeUSD&order=desc",
+            45,
+        )
+        .await
+    }
+
     pub async fn snapshots(&self, key: &str) -> Result<Value, ApiError> {
         self.get_json(key, "/v1/snapshots", 45).await
     }

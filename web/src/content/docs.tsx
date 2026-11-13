@@ -255,6 +255,49 @@ export const DOCS: DocSection[] = [
     ],
   },
   {
+    id: "health",
+    title: "Cost & Health",
+    summary: "Spend, projection, per-machine compute, budget warnings, and idle signals.",
+    blocks: [
+      {
+        kind: "p",
+        text: "The Health page combines `/v1/usage` per workspace with `/v1/usage/machines` per sandbox. Free-plan machines are never billed, so their compute stays `$0.00`; paid plans are metered per second while running.",
+      },
+      {
+        kind: "table",
+        head: ["Number", "Source", "Caveat"],
+        rows: [
+          ["Month to date", "workspace `cost.costUSD`", "Runtime + disk + egress; lags up to an hour"],
+          ["Projected", "linear projection from month start to now", "An estimate, not an invoice"],
+          ["Per-machine compute", "`computeUSD` from `/v1/usage/machines`", "vCPU + memory only; disk and egress are workspace-level"],
+          ["Credits / allowance", "workspace cost fields", "$0 on free plans"],
+        ],
+      },
+      {
+        kind: "h3",
+        text: "Budget warning",
+      },
+      {
+        kind: "p",
+        text: "Set a monthly USD budget. vmdash stores it locally and shows a warning when the current spend or the linear projection is above it. It never charges, pauses, or changes an InstaBox setting from this number.",
+      },
+      {
+        kind: "h3",
+        text: "Why is this running?",
+      },
+      {
+        kind: "p",
+        text: "For running machines, the page reads the latest metrics, the last exec, and public ports. Signals such as low CPU, no exec for 30+ minutes, an open public port, or idle pause disabled help you spot a machine that may not need to run. They are **signals, not proof**: terminal/VNC traffic, tasks with leases, and agent activity can keep a machine busy without exec or CPU load.",
+      },
+      {
+        kind: "callout",
+        tone: "warn",
+        title: "Do not use possible-idle as an automatic kill switch",
+        text: "A silent task waiting on a model API can look idle. Check the drawer, last activity, and task context before pausing. The page never pauses anything by itself.",
+      },
+    ],
+  },
+  {
     id: "terminal-files",
     title: "Terminal & files",
     summary: "PTY over WebSocket, and moving bytes in and out of a machine.",

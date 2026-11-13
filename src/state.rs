@@ -27,6 +27,7 @@ pub struct AppState {
     pub sync_lock: tokio::sync::Mutex<()>,
     pub mcp_token: RwLock<String>,
     pub desktop_cache: tokio::sync::Mutex<Option<(std::time::Instant, Value)>>,
+    pub health_cache: tokio::sync::Mutex<Option<(std::time::Instant, Value)>>,
 }
 
 impl AppState {

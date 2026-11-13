@@ -410,3 +410,76 @@ export type Schedule = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type HealthWorkspace = {
+  workspaceId: string;
+  label: string;
+  orgName?: string | null;
+  tier?: string | null;
+  costUSD: number;
+  projectedUSD?: number | null;
+  creditsUSD: number;
+  allowanceUSD: number;
+  machines?: number | null;
+  running: number;
+  snapshots?: number | null;
+  storedBytes?: number | null;
+  limits?: {
+    maxMachines?: number;
+    maxSnapshots?: number;
+    maxStoredGiB?: number;
+    unlimited?: string[] | null;
+  } | null;
+  error?: string | null;
+};
+
+export type HealthDiagnostics = {
+  metricsAvailable?: boolean;
+  cpuPct: number;
+  memUsed?: number | null;
+  memTotal?: number | null;
+  diskUsed?: number | null;
+  diskTotal?: number | null;
+  netInBytesPerSec?: number | null;
+  netOutBytesPerSec?: number | null;
+  runningSeconds: number;
+  maxRunMinutes: number;
+  lastExec: {
+    command?: string;
+    startedAt?: string;
+    exitCode?: number;
+  } | null;
+  ports: { port: number; access: string; url: string }[];
+  hints: string[];
+  possibleIdle: boolean;
+};
+
+export type HealthMachine = Machine & {
+  usage?: {
+    computeUSD?: number;
+    runningSeconds?: number;
+    free?: boolean;
+    vcpuSeconds?: number;
+    memGiBSeconds?: number;
+  } | null;
+  hourlyUSD?: number;
+  diagnostics?: HealthDiagnostics | null;
+};
+
+export type HealthOverview = {
+  generatedAt: string;
+  budgetUSD?: number | null;
+  totalCostUSD: number;
+  projectedUSD: number;
+  creditsUSD: number;
+  allowanceUSD: number;
+  workspaces: HealthWorkspace[];
+  machines: HealthMachine[];
+  pricing: {
+    vcpuHourUSD: number;
+    memGiBHourUSD: number;
+    storageGiBMonthUSD: number;
+    egressGiBUSD: number;
+  };
+  freeNote: string;
+};

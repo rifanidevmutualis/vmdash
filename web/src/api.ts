@@ -551,3 +551,16 @@ export function runSchedule(id: string) {
 export function deleteSchedule(id: string) {
   return request<{ ok: boolean }>(`/api/schedules/${id}`, { method: "DELETE" });
 }
+
+// ── Cost & Health ──────────────────────────────────────────────────────
+
+export function getHealth(fresh = false): Promise<import("./types").HealthOverview> {
+  return request(`/api/health/overview${fresh ? "?fresh=true" : ""}`);
+}
+
+export function setHealthBudget(monthlyUSD: number | null) {
+  return request<{ budgetUSD: number | null }>("/api/health/budget", {
+    method: "PUT",
+    body: JSON.stringify({ monthlyUSD }),
+  });
+}

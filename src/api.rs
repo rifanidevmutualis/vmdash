@@ -782,6 +782,7 @@ pub fn router(state: SharedState) -> axum::Router {    use axum::routing::{get, 
         .route("/api/settings/mcp-token", post(rotate_mcp_token))
         .merge(crate::extras::routes())
         .merge(crate::schedules::routes())
+        .merge(crate::health::routes())
         .with_state(state)
 }
 
