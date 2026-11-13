@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>vmdash · fleet control</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("vmdash-theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          }
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230c0f13'/%3E%3Crect x='7' y='8' width='18' height='4' rx='1.5' fill='%239ef01a'/%3E%3Crect x='7' y='14' width='18' height='4' rx='1.5' fill='%235eead4' opacity='.7'/%3E%3Crect x='7' y='20' width='11' height='4' rx='1.5' fill='%23e6edf3' opacity='.35'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

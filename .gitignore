@@ -1,0 +1,14 @@
+/target
+/web/node_modules
+/web/dist
+/.tools
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+*.key
+*.log
+.env
+.env.*
+/data/
+/.vmdash/
