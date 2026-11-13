@@ -144,7 +144,8 @@ export function HealthView({
             <strong>All workspaces are on the free plan.</strong>
             <p>
               Free-plan machines are never billed, so compute stays $0.00. Watch cooldowns and the
-              1-machine / 20 GiB / 5-snapshot limits instead of money.
+              1-machine / 20 GiB / 5-snapshot limits instead of money. There is no monthly
+              running-hour cap; each run can last up to 8 hours before a cooldown.
             </p>
           </div>
         </div>
@@ -294,7 +295,7 @@ export function HealthView({
               <tr>
                 <th>Machine</th>
                 <th>State</th>
-                <th>Running</th>
+                <th title="Total running time this calendar month (UTC), across starts and pauses">Running (month)</th>
                 <th>Compute</th>
                 <th>Est / hour</th>
                 <th>Signals</th>
@@ -316,7 +317,9 @@ export function HealthView({
                         </div>
                       </td>
                       <td><StatePill state={machine.state} /></td>
-                      <td className="mono">{duration(machine.usage?.runningSeconds)}</td>
+                      <td className="mono" title="Total running time this calendar month (UTC), across starts and pauses">
+                        {duration(machine.usage?.runningSeconds)}
+                      </td>
                       <td className="mono">
                         {money(machine.usage?.computeUSD ?? 0)}
                         {machine.usage?.free ? <span className="chip subtle">free</span> : null}

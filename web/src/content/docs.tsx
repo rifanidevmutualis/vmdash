@@ -287,7 +287,7 @@ export const DOCS: DocSection[] = [
       },
       {
         kind: "p",
-        text: "For running machines, the page reads the latest metrics, the last exec, and public ports. Signals such as low CPU, no exec for 30+ minutes, an open public port, or idle pause disabled help you spot a machine that may not need to run. They are **signals, not proof**: terminal/VNC traffic, tasks with leases, and agent activity can keep a machine busy without exec or CPU load.",
+        text: "For running machines, the page reads the latest metrics, the last exec, and public ports. `Running (month)` is the total running time this calendar month (UTC), across starts and pauses — not current uptime. Signals such as low CPU, no exec for 30+ minutes, an open public port, or idle pause disabled help you spot a machine that may not need to run. They are **signals, not proof**: terminal/VNC traffic, tasks with leases, and agent activity can keep a machine busy without exec or CPU load.",
       },
       {
         kind: "callout",
